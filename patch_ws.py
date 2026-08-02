@@ -1,14 +1,9 @@
-FROM python:3.10-slim
-WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates tar && rm -rf /var/lib/apt/lists/*
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN mkdir -p /tmp/legacy && curl -fsSL --retry 3 'https://github.com/alinenerin/sniper-v9-iqoption/archive/refs/heads/main.tar.gz' -o /tmp/legacy/repo.tgz \
-    && tar -xzf /tmp/legacy/repo.tgz -C /tmp/legacy \
-    && cp -r /tmp/legacy/sniper-v9-iqoption-main/iqoptionapi /app/iqoptionapi \
-    && rm -rf /tmp/legacy
-COPY patch_ws.py /tmp/patch_ws.py
-RUN python /tmp/patch_ws.py
-COPY api.py .
-COPY core ./core
-CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8080} api:app"]
+from pathlib import Path
+p=Path('/app/iqoptionapi/api.py')
+s=p.read_text()
+old="self.websocket_thread = threading.Thread(target=self.websocket.run_forever, kwargs={'sslopt': _sslopt})"
+new="self.websocket_thread = threading.Thread(target=self.websocket.run_forever, kwargs={'sslopt': _sslopt, 'http_proxy_host': os.getenv('WEBSHARE_SOCKS_HOST', '31.59.20.176'), 'http_proxy_port': int(os.getenv('WEBSHARE_SOCKS_PORT', '6754')), 'http_proxy_auth': (os.getenv('WEBSHARE_SOCKS_USERNAME', ''), os.getenv('WEBSHARE_SOCKS_PASSWORD', ''))})"
+if old in s:
+    p.write_text(s.replace(old,new))
+else:
+    print('websocket target differs; leaving SDK unchanged')
