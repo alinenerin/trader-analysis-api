@@ -22,6 +22,20 @@ class IQOptionReadonly:
             os.environ['http_proxy'] = proxy
             os.environ['https_proxy'] = proxy
         try:
+            # The IQ Option SDK creates WebSocketApp itself and does not reliably
+            # inherit proxy variables. Inject the fixed Webshare proxy explicitly
+            # into run_forever (the path used by the SDK).
+            import websocket
+            if host and port and not getattr(websocket.WebSocketApp, '_zapia_proxy_patch', False):
+                original_run_forever = websocket.WebSocketApp.run_forever
+                def run_via_webshare(ws, *args, **kwargs):
+                    kwargs.setdefault('http_proxy_host', host)
+                    kwargs.setdefault('http_proxy_port', int(port))
+                    if user: kwargs.setdefault('http_proxy_auth', (user, pwd))
+                    kwargs.setdefault('proxy_type', 'http')
+                    return original_run_forever(ws, *args, **kwargs)
+                websocket.WebSocketApp.run_forever = run_via_webshare
+                websocket.WebSocketApp._zapia_proxy_patch = True
             from iqoptionapi.stable_api import IQ_Option
             self.api = IQ_Option(self.email, self.password)
             ok, reason = self.api.connect()
