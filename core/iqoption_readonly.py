@@ -38,6 +38,11 @@ class IQOptionReadonly:
                 websocket.WebSocketApp._zapia_proxy_patch = True
             from iqoptionapi.stable_api import IQ_Option
             self.api = IQ_Option(self.email, self.password)
+            # The proven integration configures the SDK's requests session
+            # directly; environment variables alone are not sufficient.
+            if host and port and hasattr(self.api, 'session'):
+                proxy_url = f'http://{user}:{pwd}@{host}:{port}' if user and pwd else f'http://{host}:{port}'
+                self.api.session.proxies.update({'http': proxy_url, 'https': proxy_url})
             ok, reason = self.api.connect()
             if not ok:
                 safe_reason = str(reason or 'UNKNOWN').replace('\n', ' ')[:120]
