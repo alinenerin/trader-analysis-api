@@ -38,17 +38,17 @@ class IQOptionReadonly:
             port = int(os.getenv('WEBSHARE_SOCKS_PORT', '6014'))
             user = os.getenv('WEBSHARE_SOCKS_USERNAME', 'gjgztyys')
             pwd = os.getenv('WEBSHARE_SOCKS_PASSWORD', '')
-            proxy_url = f'http://{user}:{pwd}@{host}:{port}'
-            # The old working Railway runner used proxy environment variables;
-            # the SDK HTTP session must also receive the same route.
-            for key in ('HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy'):
+            proxy_url = f'socks5h://{user}:{pwd}@{host}:{port}'
+            # Webshare direct endpoints accept SOCKS5; use the same route for
+            # REST authentication and the IQ websocket.
+            for key in ('ALL_PROXY','all_proxy','HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy'):
                 os.environ[key] = proxy_url
             original = websocket.WebSocketApp.run_forever
             if not _patched:
                 def proxied(ws, *args, **kwargs):
                     kwargs.setdefault('http_proxy_host', host)
                     kwargs.setdefault('http_proxy_port', port)
-                    kwargs.setdefault('proxy_type', 'http')
+                    kwargs.setdefault('proxy_type', 'socks5')
                     kwargs.setdefault('http_proxy_auth', (user, pwd))
                     return original(ws, *args, **kwargs)
                 websocket.WebSocketApp.run_forever = proxied
