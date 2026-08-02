@@ -101,7 +101,8 @@ def binarias():
 
 @app.get('/api/market/iqoption/status')
 def iqoption_status():
-    from core.iqoption_readonly import connection_status
+    from core.iqoption_readonly import IQOptionReadonly, connection_status
+    IQOptionReadonly()  # starts the persistent read-only session if needed
     return jsonify({'executor_enabled': False, 'read_only': True, **connection_status()})
 
 
