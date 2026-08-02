@@ -99,6 +99,27 @@ def binarias():
     return scan_binary()
 
 
+@app.get('/api/market/iqoption/candles')
+def iqoption_candles():
+    """Read-only market data endpoint. It never calls any order/execution method."""
+    from core.iqoption_readonly import IQOptionReadonly
+    symbol = request.args.get('symbol', 'EURUSD')
+    interval = request.args.get('interval', '60')
+    count = request.args.get('count', '1000')
+    data = IQOptionReadonly().candles(symbol, interval, count)
+    return jsonify(_json_safe({'status': 'ok' if data.get('ok') else 'unavailable', **data,
+                               'executor_enabled': False, 'read_only': True}))
+
+
+@app.get('/api/market/iqoption/payout')
+def iqoption_payout():
+    from core.iqoption_readonly import IQOptionReadonly
+    symbol = request.args.get('symbol', 'EURUSD')
+    data = IQOptionReadonly().payout(symbol)
+    return jsonify(_json_safe({'status': 'ok' if data.get('ok') else 'unavailable', **data,
+                               'executor_enabled': False, 'read_only': True}))
+
+
 @app.post('/api/forex/scan')
 def forex_not_enabled():
     return jsonify({'status': 'ok', 'type': 'forex', 'decision': 'AGUARDAR', 'score': 0,
