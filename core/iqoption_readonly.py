@@ -7,7 +7,6 @@ _client = None
 _state = {'status': 'starting', 'reason': None, 'connected_at': None}
 _lock = threading.RLock()
 _start_once = False
-_patched = False
 
 class IQOptionReadonly:
     def __init__(self):
@@ -25,7 +24,7 @@ class IQOptionReadonly:
                 threading.Thread(target=self._connect_worker, daemon=True, name='iqoption-session').start()
 
     def _connect_worker(self):
-        global _client, _state, _patched
+        global _client, _state
         with _lock:
             if self.api and self.connected: return
             if not self.email or not self.password:
@@ -34,11 +33,16 @@ class IQOptionReadonly:
         try:
             from iqoptionapi.stable_api import IQ_Option
             import websocket
-            host = os.getenv('WEBSHARE_SOCKS_HOST', '45.38.107.97')
-            port = int(os.getenv('WEBSHARE_SOCKS_PORT', '6014'))
-            user = os.getenv('WEBSHARE_SOCKS_USERNAME', 'gjgztyys')
-            pwd = os.getenv('WEBSHARE_SOCKS_PASSWORD', '')
-            proxy_url = f'http://{user}:{pwd}@{host}:{port}'
+            # Accept either Railway naming convention, but never use a baked-in proxy.
+            host = os.getenv('WEBSHARE_HOST') or os.getenv('WEBSHARE_SOCKS_HOST', '')
+            port_text = os.getenv('WEBSHARE_PORT') or os.getenv('WEBSHARE_SOCKS_PORT', '')
+            user = os.getenv('WEBSHARE_USERNAME') or os.getenv('WEBSHARE_SOCKS_USERNAME', '')
+            pwd = os.getenv('WEBSHARE_PASSWORD') or os.getenv('WEBSHARE_SOCKS_PASSWORD', '')
+            if not host or not port_text:
+                _state.update(status='error', reason='WEBSHARE_PROXY_NOT_CONFIGURED'); return
+            port = int(port_text)
+            websocket.setdefaulttimeout(20)
+            proxy_url = f'http://{user}:{pwd}@{host}:{port}' if user else f'http://{host}:{port}'
             # Webshare direct endpoints are HTTP CONNECT proxies; use the
             # same route for REST authentication and the IQ websocket.
             for key in ('ALL_PROXY','all_proxy','HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy'):
