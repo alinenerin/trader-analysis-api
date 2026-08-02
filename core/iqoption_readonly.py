@@ -13,16 +13,22 @@ class IQOptionReadonly:
         if not self.email or not self.password:
             return False, 'IQ_OPTION_CREDENTIALS_NOT_CONFIGURED'
         try:
-            # This is intentionally the same path as the old working diagnostic:
-            # ALL_PROXY is set before IQ_Option is instantiated; no custom
-            # WebSocket monkey patch and no session-proxy rewrite is applied.
-            socks_host = os.getenv('WEBSHARE_SOCKS_HOST', 'socks.webshare.io')
-            socks_port = os.getenv('WEBSHARE_SOCKS_PORT', '1080')
-            socks_user = os.getenv('WEBSHARE_SOCKS_USERNAME', '')
-            socks_pass = os.getenv('WEBSHARE_SOCKS_PASSWORD', '')
-            proxy_url = f'socks5h://{socks_user}:{socks_pass}@{socks_host}:{socks_port}'
-            os.environ['ALL_PROXY'] = proxy_url
-            os.environ['all_proxy'] = proxy_url
+            # The legacy production workflow did NOT set a proxy: it connected
+            # directly from its runner. Keep direct mode as the default and only
+            # enable Webshare when explicitly requested.
+            use_proxy = os.getenv('IQ_OPTION_USE_PROXY', 'false').lower() == 'true'
+            if use_proxy:
+                socks_host = os.getenv('WEBSHARE_SOCKS_HOST', 'socks.webshare.io')
+                socks_port = os.getenv('WEBSHARE_SOCKS_PORT', '1080')
+                socks_user = os.getenv('WEBSHARE_SOCKS_USERNAME', '')
+                socks_pass = os.getenv('WEBSHARE_SOCKS_PASSWORD', '')
+                proxy_url = f'socks5h://{socks_user}:{socks_pass}@{socks_host}:{socks_port}'
+                os.environ['ALL_PROXY'] = proxy_url
+                os.environ['all_proxy'] = proxy_url
+            else:
+                # Do not inherit stale proxy variables from the container.
+                for key in ('ALL_PROXY','all_proxy','HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy'):
+                    os.environ.pop(key, None)
             from iqoptionapi.stable_api import IQ_Option
             self.api = IQ_Option(self.email, self.password)
             ok, reason = self.api.connect()
