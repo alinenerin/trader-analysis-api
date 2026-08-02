@@ -1,8 +1,6 @@
 Flask==3.1.0
 gunicorn==23.0.0
-numpy>=1.24,<3
 pandas>=2.0,<3
 requests[socks]>=2.31,<3
-pytz>=2023.3
 websocket-client>=1.8,<2
 PySocks>=1.7.1
