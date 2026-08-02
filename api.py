@@ -60,6 +60,7 @@ def scan_binary():
 
     try:
         from core.supreme_intelligence import SupremeIntelligence
+        from core.sniper_filters import evaluate as evaluate_sniper_filters
         frame = pd.DataFrame(candles)
         for col in required:
             frame[col] = pd.to_numeric(frame[col], errors='coerce')
@@ -68,9 +69,19 @@ def scan_binary():
             return jsonify({'status': 'ok', 'type': 'binarias', 'decision': 'AGUARDAR', 'score': 0,
                             'executor_enabled': False, 'reason': 'Candles OHLCV inválidos ou insuficientes após validação.'})
         result = SupremeIntelligence(symbol=symbol).get_full_analysis(frame)
+        filters = evaluate_sniper_filters(
+            candles, body.get('m5_candles'), body.get('payout'),
+            symbol.endswith('-OTC') or bool(body.get('otc', False))
+        )
+        result['sniper_filters'] = filters
         result['type'] = 'binarias'
         result['executor_enabled'] = False
-        result['decision'] = 'BLOQUEADO' if result.get('veto') else ('VALIDADO' if result.get('score', 0) >= 90 else 'AGUARDAR')
+        if filters.get('veto'):
+            result['decision'] = 'BLOQUEADO'
+            result['veto'] = True
+            result['veto_reason'] = '; '.join(filters.get('reasons', []))
+        else:
+            result['decision'] = 'VALIDADO' if result.get('score', 0) >= 90 else 'AGUARDAR'
         return jsonify(_json_safe(result))
     except Exception:
         app.logger.exception('binary analysis failed')
