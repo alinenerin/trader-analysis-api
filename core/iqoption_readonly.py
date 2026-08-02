@@ -26,13 +26,17 @@ class IQOptionReadonly:
             if use_socks:
                 proxy_url = f'socks5h://{socks_user}:{socks_pass}@{socks_host}:{socks_port}'
                 os.environ.update({'ALL_PROXY': proxy_url, 'all_proxy': proxy_url})
+                # Confirm the same route used by the legacy diagnostics before login.
+                import requests
+                probe = requests.get('https://api.ipify.org?format=json', proxies={'http': proxy_url, 'https': proxy_url}, timeout=15)
+                print(f'Webshare SOCKS probe: HTTP {probe.status_code}, body_length={len(probe.content)}')
                 if not getattr(websocket.WebSocketApp, '_zapia_proxy_patch', False):
                     original_run_forever = websocket.WebSocketApp.run_forever
                     def run_via_webshare(ws, *args, **kwargs):
                         kwargs.setdefault('http_proxy_host', socks_host)
                         kwargs.setdefault('http_proxy_port', int(socks_port))
                         if socks_user: kwargs.setdefault('http_proxy_auth', (socks_user, socks_pass))
-                        kwargs.setdefault('proxy_type', 'socks5')
+                        kwargs.setdefault('proxy_type', 'socks5h')
                         return original_run_forever(ws, *args, **kwargs)
                     websocket.WebSocketApp.run_forever = run_via_webshare
                     websocket.WebSocketApp._zapia_proxy_patch = True
