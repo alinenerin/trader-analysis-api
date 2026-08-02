@@ -34,21 +34,6 @@ class IQOptionReadonly:
         try:
             from iqoptionapi.stable_api import IQ_Option
             import websocket
-            # Guard the legacy websocket-client callback dispatcher against recursive re-entry.
-            def _safe_callback(self_ws, callback, *args):
-                if not callback or callback is self_ws._callback:
-                    return
-                try:
-                    import inspect
-                    if inspect.ismethod(callback):
-                        callback(*args)
-                    else:
-                        callback(self_ws, *args)
-                except Exception as exc:
-                    import logging
-                    logging.getLogger(__name__).error("IQ websocket callback failed: %s", exc, exc_info=True)
-                    self_ws.keep_running = False
-            websocket.WebSocketApp._callback = _safe_callback
             host = os.getenv('WEBSHARE_SOCKS_HOST', '45.38.107.97')
             port = int(os.getenv('WEBSHARE_SOCKS_PORT', '6014'))
             user = os.getenv('WEBSHARE_SOCKS_USERNAME', 'gjgztyys')
