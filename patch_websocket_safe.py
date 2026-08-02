@@ -2,22 +2,15 @@ from pathlib import Path
 import websocket
 p = Path(websocket.__file__).with_name('_app.py')
 s = p.read_text()
-old = '''    def _callback(self, callback, *args):
-        if callback:
-            try:
-                if inspect.ismethod(callback):
-                    callback(*args)
-                else:
-                    callback(self, *args)
-            except Exception as e:
-                _logging.error("error from callback {}: {}".format(callback, e))
-                if _logging.isEnabledForDebug():
-                    _, _, tb = sys.exc_info()
-                    traceback.print_tb(tb)
-'''
+start = s.find('    def _callback(self, callback, *args):')
+if start < 0:
+    raise SystemExit('callback method not found')
+end = s.find('\n    def ', start + 10)
+if end < 0:
+    raise SystemExit('next method not found')
 new = '''    def _callback(self, callback, *args):
-        # The legacy client can re-enter _callback on malformed handshake errors.
-        # Never recurse; surface the original callback failure to the caller/log.
+        # Prevent the legacy client from recursively re-entering its callback
+        # dispatcher when the handshake/error callback itself raises.
         if not callback or callback is self._callback:
             return
         try:
@@ -29,7 +22,5 @@ new = '''    def _callback(self, callback, *args):
             _logging.error("websocket callback failed: %s", e, exc_info=True)
             self.keep_running = False
 '''
-if old not in s:
-    raise SystemExit(f'expected callback block not found in {p}')
-p.write_text(s.replace(old, new))
+p.write_text(s[:start] + new + s[end:])
 print(p)
