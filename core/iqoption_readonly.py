@@ -31,7 +31,16 @@ class IQOptionReadonly:
                     os.environ.pop(key, None)
             from iqoptionapi.stable_api import IQ_Option
             self.api = IQ_Option(self.email, self.password)
-            ok, reason = self.api.connect()
+            import signal
+            class _ConnectTimeout(Exception): pass
+            def _alarm(_signum, _frame): raise _ConnectTimeout()
+            previous_handler = signal.signal(signal.SIGALRM, _alarm)
+            signal.alarm(int(os.getenv('IQ_OPTION_CONNECT_TIMEOUT', '25')))
+            try:
+                ok, reason = self.api.connect()
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, previous_handler)
             if not ok:
                 print(f'IQ Option legacy connection rejected: {str(reason)[:120]}')
                 return False, f'IQ_OPTION_CONNECTION_FAILED:{str(reason or "UNKNOWN")[:120]}'
