@@ -5,5 +5,5 @@ pandas>=2.0,<3
 requests>=2.31,<3
 pytz>=2023.3
 xgboost>=2.0,<4
-git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git
+https://github.com/Lu-Yi-Hsun/iqoptionapi/archive/refs/heads/master.zip
 websocket-client<2
