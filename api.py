@@ -99,6 +99,12 @@ def binarias():
     return scan_binary()
 
 
+@app.get('/api/market/iqoption/status')
+def iqoption_status():
+    from core.iqoption_readonly import connection_status
+    return jsonify({'executor_enabled': False, 'read_only': True, **connection_status()})
+
+
 @app.get('/api/market/iqoption/candles')
 def iqoption_candles():
     """Read-only market data endpoint. It never calls any order/execution method."""
