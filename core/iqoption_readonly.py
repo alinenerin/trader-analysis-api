@@ -49,7 +49,11 @@ class IQOptionReadonly:
             # Force the REST login through the same verified Webshare endpoint.
             if hasattr(api, 'session'):
                 api.session.proxies.update({'http': proxy_url, 'https': proxy_url})
+            import signal
+            signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError("IQ_CONNECT_TIMEOUT")))
+            signal.alarm(35)
             ok, reason = api.connect()
+            signal.alarm(0)
             if not ok:
                 _state.update(status='error', reason=str(reason or 'IQ_OPTION_LOGIN_FAILED')[:180]); return
             try: api.change_balance(self.balance_mode)
