@@ -38,9 +38,9 @@ class IQOptionReadonly:
             port = int(os.getenv('WEBSHARE_SOCKS_PORT', '6014'))
             user = os.getenv('WEBSHARE_SOCKS_USERNAME', 'gjgztyys')
             pwd = os.getenv('WEBSHARE_SOCKS_PASSWORD', '')
-            proxy_url = f'socks5h://{user}:{pwd}@{host}:{port}'
-            # Webshare direct endpoints accept SOCKS5; use the same route for
-            # REST authentication and the IQ websocket.
+            proxy_url = f'http://{user}:{pwd}@{host}:{port}'
+            # Webshare direct endpoints are HTTP CONNECT proxies; use the
+            # same route for REST authentication and the IQ websocket.
             for key in ('ALL_PROXY','all_proxy','HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy'):
                 os.environ[key] = proxy_url
             original = websocket.WebSocketApp.run_forever
@@ -48,7 +48,7 @@ class IQOptionReadonly:
                 def proxied(ws, *args, **kwargs):
                     kwargs.setdefault('http_proxy_host', host)
                     kwargs.setdefault('http_proxy_port', port)
-                    kwargs.setdefault('proxy_type', 'socks5')
+                    kwargs.setdefault('proxy_type', 'http')
                     kwargs.setdefault('http_proxy_auth', (user, pwd))
                     return original(ws, *args, **kwargs)
                 websocket.WebSocketApp.run_forever = proxied
