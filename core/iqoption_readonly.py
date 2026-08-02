@@ -3,9 +3,9 @@ import os, time
 
 class IQOptionReadonly:
     def __init__(self):
-        self.email = os.getenv('IQ_OPTION_EMAIL', '')
-        self.password = os.getenv('IQ_OPTION_PASSWORD', '')
-        self.balance_mode = os.getenv('IQ_OPTION_BALANCE_MODE', 'PRACTICE')
+        self.email = os.getenv('IQ_OPTION_EMAIL') or os.getenv('IQ_USER', '')
+        self.password = os.getenv('IQ_OPTION_PASSWORD') or os.getenv('IQ_PASS', '')
+        self.balance_mode = os.getenv('IQ_OPTION_BALANCE_MODE') or os.getenv('BALANCE_MODE', 'PRACTICE')
         self.connected = False
         self.api = None
 
@@ -16,7 +16,7 @@ class IQOptionReadonly:
             # The legacy production workflow did NOT set a proxy: it connected
             # directly from its runner. Keep direct mode as the default and only
             # enable Webshare when explicitly requested.
-            use_proxy = os.getenv('IQ_OPTION_USE_PROXY', 'false').lower() == 'true'
+            use_proxy = os.getenv('IQ_OPTION_USE_PROXY', 'true').lower() == 'true'
             if use_proxy:
                 socks_host = os.getenv('WEBSHARE_SOCKS_HOST', 'socks.webshare.io')
                 socks_port = os.getenv('WEBSHARE_SOCKS_PORT', '1080')
