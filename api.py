@@ -61,6 +61,7 @@ def scan_binary():
     try:
         from core.supreme_intelligence import SupremeIntelligence
         from core.sniper_filters import evaluate as evaluate_sniper_filters
+        from core.news_shield_v2 import NewsShieldV2
         frame = pd.DataFrame(candles)
         for col in required:
             frame[col] = pd.to_numeric(frame[col], errors='coerce')
@@ -73,13 +74,17 @@ def scan_binary():
             candles, body.get('m5_candles'), body.get('payout'),
             symbol.endswith('-OTC') or bool(body.get('otc', False))
         )
+        news_ok, news_reason, news_details = NewsShieldV2().validate(symbol, filters.get('direction', 'NEUTRAL'))
+        result['news_shield'] = {'approved': news_ok, 'reason': news_reason, 'details': news_details}
         result['sniper_filters'] = filters
         result['type'] = 'binarias'
         result['executor_enabled'] = False
-        if filters.get('veto'):
+        if filters.get('veto') or not news_ok:
             result['decision'] = 'BLOQUEADO'
             result['veto'] = True
-            result['veto_reason'] = '; '.join(filters.get('reasons', []))
+            reasons = list(filters.get('reasons', []))
+            if not news_ok: reasons.append(news_reason)
+            result['veto_reason'] = '; '.join(reasons)
         else:
             result['decision'] = 'VALIDADO' if result.get('score', 0) >= 90 else 'AGUARDAR'
         return jsonify(_json_safe(result))
