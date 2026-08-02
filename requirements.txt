@@ -4,7 +4,5 @@ numpy>=1.24,<3
 pandas>=2.0,<3
 requests[socks]>=2.31,<3
 pytz>=2023.3
-xgboost>=2.0,<4
 websocket-client>=1.8,<2
-https://github.com/Lu-Yi-Hsun/iqoptionapi/archive/refs/heads/master.zip
 PySocks>=1.7.1
