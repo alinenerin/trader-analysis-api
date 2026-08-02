@@ -20,6 +20,8 @@ from core.sentiment_analysis import SentimentAnalysis
 from core.integrations.darts_anomaly_shield import DartsAnomalyShield, run_anomaly_check
 from core.probability_engine import ProbabilityEngine
 from core.sovereign_filter import SovereignFilter
+from core.forecasting.google_timesfm_bridge import TimesFMBridge
+from core.mem0_memory import Mem0Memory
 
 def _xgboost_available():
     try:
@@ -45,6 +47,8 @@ class SupremeIntelligence:
         self.anomaly_trained = {}  # controle de pares já treinados
         self.probability_engine = ProbabilityEngine()
         self.sovereign_filter = SovereignFilter(min_score=90, min_prob=92)
+        self.timesfm = TimesFMBridge()
+        self.memory = Mem0Memory(db_path="binary_quant.db")
 
     def get_full_analysis(self, ohlcv_df):
         """
@@ -122,6 +126,7 @@ class SupremeIntelligence:
         # =============================================
         final_score = (smc_score * 0.4) + (vsa_score * 0.3) + (sent_score * 0.3)
         
+        timesfm = self.timesfm.forecast_next_candle(ohlcv_df["close"].tolist())
         probability = self.probability_engine.calculate(
             technical_score=round(final_score, 1), asset_winrate=50,
             hour_winrate=50, regime_score=50, adaptive_score=50,
@@ -148,6 +153,8 @@ class SupremeIntelligence:
             "probability": probability,
             "sovereign_filter": {"approved": approved, "reason": filter_reason},
             "xgboost": {"status": "available" if _xgboost_available() else "not_installed", "model_loaded": False},
+            "timesfm": timesfm,
+            "memory": {"status": "sqlite_available", "stats": self.memory.get_stats()},
         }
         if not approved:
             analysis["decision"] = "AGUARDAR"
