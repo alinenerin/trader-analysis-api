@@ -1,13 +1,9 @@
-"""Persistent read-only IQ Option session using the current Webshare direct proxy."""
-import os
-import time
-import threading
-
+"""Persistent read-only IQ Option session."""
+import os, time, threading
 _client = None
 _state = {'status': 'starting', 'reason': None, 'connected_at': None}
 _lock = threading.RLock()
 _start_once = False
-_patched = False
 
 class IQOptionReadonly:
     def __init__(self):
@@ -15,8 +11,7 @@ class IQOptionReadonly:
         self.email = os.getenv('IQ_OPTION_EMAIL') or os.getenv('IQ_USER', '')
         self.password = os.getenv('IQ_OPTION_PASSWORD') or os.getenv('IQ_PASS', '')
         self.balance_mode = os.getenv('IQ_OPTION_BALANCE_MODE') or os.getenv('BALANCE_MODE', 'PRACTICE')
-        self.connected = False
-        self.api = None
+        self.connected, self.api = False, None
         with _lock:
             if _client is not None:
                 self.api, self.connected = _client.api, bool(_client.api)
@@ -25,49 +20,33 @@ class IQOptionReadonly:
                 threading.Thread(target=self._connect_worker, daemon=True, name='iqoption-session').start()
 
     def _connect_worker(self):
-        global _client, _state, _patched
+        global _client, _state
         with _lock:
             if self.api and self.connected: return
             if not self.email or not self.password:
                 _state.update(status='error', reason='IQ_OPTION_CREDENTIALS_NOT_CONFIGURED'); return
             _state.update(status='connecting', reason=None)
         try:
-            import websocket
-            def _iq_safe_callback(ws, callback, *args):
-                if callback is None: return
-                try:
-                    import inspect
-                    if inspect.ismethod(callback): callback(*args)
-                    else: callback(ws, *args)
-                except Exception as exc:
-                    import logging; logging.getLogger(__name__).error("IQ websocket callback failed: %s", exc)
-                    try: ws.keep_running = False
-                    except Exception: pass
-            websocket.WebSocketApp._callback = _iq_safe_callback
             from iqoptionapi.stable_api import IQ_Option
-            import websocket
-            host = os.getenv('WEBSHARE_SOCKS_HOST', '45.38.107.97')
-            port = int(os.getenv('WEBSHARE_SOCKS_PORT', '6014'))
-            user = os.getenv('WEBSHARE_SOCKS_USERNAME', 'gjgztyys')
-            pwd = os.getenv('WEBSHARE_SOCKS_PASSWORD', '')
-            proxy_url = f'http://{user}:{pwd}@{host}:{port}'
-            # Webshare direct endpoints are HTTP CONNECT proxies; use the
-            # same route for REST authentication and the IQ websocket.
+            host = os.getenv('WEBSHARE_HOST') or os.getenv('WEBSHARE_SOCKS_HOST', '')
+            port_text = os.getenv('WEBSHARE_PORT') or os.getenv('WEBSHARE_SOCKS_PORT', '')
+            user = os.getenv('WEBSHARE_USERNAME') or os.getenv('WEBSHARE_SOCKS_USERNAME', '')
+            pwd = os.getenv('WEBSHARE_PASSWORD') or os.getenv('WEBSHARE_SOCKS_PASSWORD', '')
+            if not host or not port_text:
+                _state.update(status='error', reason='WEBSHARE_PROXY_NOT_CONFIGURED'); return
+            proxy_url = f'http://{user}:{pwd}@{host}:{int(port_text)}' if user else f'http://{host}:{int(port_text)}'
             for key in ('ALL_PROXY','all_proxy','HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy'):
                 os.environ[key] = proxy_url
-            # The SDK image is patched at build time; do not monkey-patch
-            # WebSocketApp here (that caused recursive callback failures).
             api = IQ_Option(self.email, self.password)
-            # Force the REST login through the same verified Webshare endpoint.
             if hasattr(api, 'session'):
                 api.session.proxies.update({'http': proxy_url, 'https': proxy_url})
             result = [None]
-            def _do_connect():
+            def do_connect():
                 try: result[0] = api.connect()
-                except Exception as exc: result[0] = (False, f"{type(exc).__name__}: {exc}")
-            t = threading.Thread(target=_do_connect, daemon=True, name='iqoption-connect-call'); t.start(); t.join(45)
+                except Exception as exc: result[0] = (False, type(exc).__name__)
+            t = threading.Thread(target=do_connect, daemon=True); t.start(); t.join(30)
             if t.is_alive():
-                _state.update(status='error', reason='IQ_OPTION_CONNECT_TIMEOUT'); return
+                _state.update(status='error', reason='IQ_OPTION_CONNECT_TIMEOUT_30S'); return
             ok, reason = result[0] or (False, 'IQ_OPTION_CONNECT_FAILED')
             if not ok:
                 _state.update(status='error', reason=str(reason or 'IQ_OPTION_LOGIN_FAILED')[:180]); return
@@ -80,19 +59,15 @@ class IQOptionReadonly:
             _state.update(status='error', reason=f'{type(exc).__name__}: {exc}'[:180])
 
     def connect(self):
-        if self.connected and self.api: return True, 'CONNECTED_READ_ONLY'
-        return False, _state.get('reason') or 'IQ_OPTION_CONNECTING'
+        return (True, 'CONNECTED_READ_ONLY') if self.connected and self.api else (False, _state.get('reason') or 'IQ_OPTION_CONNECTING')
 
     def candles(self, symbol, interval=60, count=1000):
-        if not self.connected or not self.api:
-            return {'ok': False, 'reason': _state.get('reason') or 'IQ_OPTION_CONNECTING', 'read_only': True}
+        if not self.connected or not self.api: return {'ok': False, 'reason': _state.get('reason') or 'IQ_OPTION_CONNECTING', 'read_only': True}
         try:
             symbol = str(symbol).upper().replace('/', '')
             raw = self.api.get_candles(symbol, int(interval), max(1, min(int(count), 3000)), time.time())
-            out = [{'timestamp': c.get('from'), 'open': c.get('open'), 'high': c.get('max'), 'low': c.get('min'), 'close': c.get('close'), 'volume': c.get('volume', 0)} for c in raw or []]
-            return {'ok': True, 'symbol': symbol, 'interval_seconds': int(interval), 'candles': out, 'source': 'IQ_OPTION_WEBSHARE', 'read_only': True}
-        except Exception as exc:
-            return {'ok': False, 'reason': f'IQ_OPTION_CANDLES_UNAVAILABLE:{type(exc).__name__}'}
+            return {'ok': True, 'symbol': symbol, 'interval_seconds': int(interval), 'candles': [{'timestamp': c.get('from'), 'open': c.get('open'), 'high': c.get('max'), 'low': c.get('min'), 'close': c.get('close'), 'volume': c.get('volume', 0)} for c in raw or []], 'source': 'IQ_OPTION_WEBSHARE', 'read_only': True}
+        except Exception as exc: return {'ok': False, 'reason': f'IQ_OPTION_CANDLES_UNAVAILABLE:{type(exc).__name__}'}
 
     def payout(self, symbol):
         if not self.connected or not self.api: return {'ok': False, 'reason': _state.get('reason') or 'IQ_OPTION_CONNECTING', 'read_only': True}
@@ -104,5 +79,4 @@ class IQOptionReadonly:
             return {'ok': False, 'reason': 'PAYOUT_NOT_EXPOSED_BY_SDK'}
         except Exception: return {'ok': False, 'reason': 'IQ_OPTION_PAYOUT_UNAVAILABLE'}
 
-def connection_status():
-    return dict(_state)
+def connection_status(): return dict(_state)
