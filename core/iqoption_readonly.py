@@ -30,9 +30,12 @@ class IQOptionReadonly:
             self.api.change_balance(self.balance_mode)
             self.connected = True
             return True, 'CONNECTED_READ_ONLY'
-        except ImportError:
-            return False, 'IQ_OPTION_SDK_NOT_INSTALLED'
-        except Exception:
+        except ImportError as exc:
+            # Keep diagnostic detail in server logs, never in the public response.
+            print(f'IQ Option SDK import failed: {type(exc).__name__}: {exc}')
+            return False, 'IQ_OPTION_SDK_IMPORT_FAILED'
+        except Exception as exc:
+            print(f'IQ Option connection failed: {type(exc).__name__}: {exc}')
             return False, 'IQ_OPTION_CONNECTION_ERROR'
 
     def candles(self, symbol, interval=60, count=1000):
