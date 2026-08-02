@@ -43,16 +43,8 @@ class IQOptionReadonly:
             # same route for REST authentication and the IQ websocket.
             for key in ('ALL_PROXY','all_proxy','HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy'):
                 os.environ[key] = proxy_url
-            original = websocket.WebSocketApp.run_forever
-            if not _patched:
-                def proxied(ws, *args, **kwargs):
-                    kwargs.setdefault('http_proxy_host', host)
-                    kwargs.setdefault('http_proxy_port', port)
-                    kwargs.setdefault('proxy_type', 'http')
-                    kwargs.setdefault('http_proxy_auth', (user, pwd))
-                    return original(ws, *args, **kwargs)
-                websocket.WebSocketApp.run_forever = proxied
-                _patched = True
+            # The SDK image is patched at build time; do not monkey-patch
+            # WebSocketApp here (that caused recursive callback failures).
             api = IQ_Option(self.email, self.password)
             # Force the REST login through the same verified Webshare endpoint.
             if hasattr(api, 'session'):
