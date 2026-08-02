@@ -26,7 +26,9 @@ class IQOptionReadonly:
             self.api = IQ_Option(self.email, self.password)
             ok, reason = self.api.connect()
             if not ok:
-                return False, 'IQ_OPTION_CONNECTION_FAILED'
+                safe_reason = str(reason or 'UNKNOWN').replace('\n', ' ')[:120]
+                print(f'IQ Option connection rejected: {safe_reason}')
+                return False, f'IQ_OPTION_CONNECTION_FAILED:{safe_reason}'
             self.api.change_balance(self.balance_mode)
             self.connected = True
             return True, 'CONNECTED_READ_ONLY'
